@@ -50,7 +50,7 @@ body {
 
 @layer components {
   .btn {
-    @apply inline-flex items-center justify-center px-6 py-3 rounded-lg font-medium transition-all bg-neutral-900 text-white shadow-premium hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500;
+    @apply inline-flex items-center justify-center px-6 py-3 rounded-lg font-medium transition-all bg-neutral-900 text-white shadow-premium hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500;
   }
 
   .card {
