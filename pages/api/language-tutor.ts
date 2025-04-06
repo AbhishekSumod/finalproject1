@@ -18,8 +18,8 @@ interface GrammarExercise {
 }
 
 interface FillerWordsCorrection {
-  mistakes: string;
   fillerCount: number;
+  fillersUsed: string[];
   correctedText: string;
 }
 
@@ -30,7 +30,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     switch (action) {
       case 'conversation':
         try {
-          const aiResponse = await generateAIResponse(userInput, skillLevel);
+          const aiResponse = await generateAIResponse(userInput);
           return res.status(200).json({ message: aiResponse });
         } catch (error) {
           console.error('Error generating AI response:', error);
@@ -69,17 +69,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 }
 
-async function generateAIResponse(input: string, skillLevel: string): Promise<string> {
-  const prompt = `You are a helpful language tutor assisting a ${skillLevel} level student. 
-  Respond to the following input in a way that's appropriate for their skill level: "${input}"`;
+async function generateAIResponse(input: string): Promise<string> {
+  const prompt = `Correct only the mistakes in this sentence.
+  Identify and list the grammar mistakes along with their corrections.
+  Count and list the filler words used.
+  Analyze the sentiment of the sentence and provide a confidence level.
+  Do not provide explanations.
+  Return the response in the following format:
+  
+  Corrected Sentence: [Corrected sentence here]
+  Grammar Mistakes: [mistake1 → correction1, mistake2 → correction2]
+  Filler Count: [number]
+  Fillers Used: [word1, word2, word3]
+  Sentiment: [Positive/Negative/Neutral]
+  Confidence Level: [High/Medium/Low]
+  
+  Sentence: "${input}"`;
 
   try {
     const completion = await groq.chat.completions.create({
       messages: [{ role: 'user', content: prompt }],
-      model: 'mixtral-8x7b-32768',
+      model: 'llama3-70b-8192', // Updated model
       temperature: 0.001,
-      max_tokens: 30000
-      ,
+      max_tokens: 300,
     });
 
     return completion.choices[0]?.message?.content || "I'm sorry, I couldn't generate a response.";
@@ -92,7 +104,8 @@ async function generateAIResponse(input: string, skillLevel: string): Promise<st
 async function generateWordExercises(skillLevel: string, count: number = 5): Promise<WordExercise[]> {
   const prompt = `Generate ${count} vocabulary word exercises for a ${skillLevel} level English learner. 
   Choose words that are contextual and relevant to the learner's skill level. 
-  Provide each word's definition and an example sentence. Avoid basic words like "hello" or "goodbye". Format the response as a JSON array with the following structure:
+  Provide each word's definition and an example sentence. Avoid basic words like "hello" or "goodbye". 
+  Format the response as a JSON array:
   [
     {
       "word": "example1",
@@ -104,119 +117,18 @@ async function generateWordExercises(skillLevel: string, count: number = 5): Pro
   try {
     const completion = await groq.chat.completions.create({
       messages: [{ role: 'user', content: prompt }],
-      model: 'mixtral-8x7b-32768',
+      model: 'llama3-70b-8192',
       temperature: 0.001,
       max_tokens: 3000,
     });
 
     const response = completion.choices[0]?.message?.content;
-    if (!response) {
-      throw new Error('No response from AI');
-    }
+    if (!response) throw new Error('No response from AI');
 
     const jsonMatch = response.match(/\[[\s\S]*\]/);
-    const jsonString = jsonMatch ? jsonMatch[0] : response;
-    const parsedResponse = JSON.parse(jsonString) as WordExercise[];
-
-    return parsedResponse.filter(exercise =>
-      exercise.word && exercise.definition && exercise.exampleSentence
-    );
+    return JSON.parse(jsonMatch ? jsonMatch[0] : response) as WordExercise[];
   } catch (error) {
     console.error('Error generating word exercises:', error);
     throw new Error('Failed to generate word exercises');
   }
 }
-
-async function generateGrammarExercise(skillLevel: string): Promise<GrammarExercise> {
-  let prompt = '';
-  if (skillLevel === 'Advanced') {
-    prompt = `Generate an advanced grammar exercise for an English learner. 
-    Focus on complex grammatical structures such as conditionals, passive voice, reported speech, or advanced tenses.
-    Provide a challenging question with three options and the correct answer. Format the response as JSON with the following structure:
-    {
-      "question": "Complete the sentence with the correct form: If I ___ (know) about the party earlier, I would have attended.",
-      "options": ["had known", "knew", "would know"],
-      "correctAnswer": "had known"
-    }`;
-  } else if (skillLevel === 'Intermediate') {
-    prompt = `Generate an intermediate level grammar exercise for an English learner. 
-    Provide a question with three options and the correct answer. Example: “Choose the correct past tense: Yesterday, I ___ to the store.”`;
-  } else {
-    prompt = `Generate a beginner level grammar exercise for an English learner. 
-    Provide a simple question with three options and the correct answer. Example: “Complete the sentence: I ___ (am/is/are) learning English.”`;
-  }
-
-  try {
-    const completion = await groq.chat.completions.create({
-      messages: [{ role: 'user', content: prompt }],
-      model: 'mixtral-8x7b-32768',
-      temperature: 0.001,
-      max_tokens: 3000,
-    });
-
-    const response = completion.choices[0]?.message?.content;
-    if (!response) {
-      throw new Error('No response from AI');
-    }
-
-    const jsonMatch = response.match(/\{[\s\S]*\}/);
-    const jsonString = jsonMatch ? jsonMatch[0] : response;
-    const parsedResponse = JSON.parse(jsonString) as GrammarExercise;
-    if (!parsedResponse.question || !Array.isArray(parsedResponse.options) || !parsedResponse.correctAnswer) {
-      throw new Error('Invalid response structure');
-    }
-    return parsedResponse;
-  } catch (error) {
-    console.error('Error generating grammar exercise:', error);
-    return createDefaultExercise(skillLevel);
-  }
-}
-
-function createDefaultExercise(skillLevel: string): GrammarExercise {
-  switch (skillLevel) {
-    case 'Beginner':
-      return {
-        question: "Complete the sentence: I ___ a student.",
-        options: ["am", "is", "are"],
-        correctAnswer: "am"
-      };
-    case 'Intermediate':
-      return {
-        question: "Choose the correct past tense: Yesterday, I ___ to the store.",
-        options: ["go", "went", "gone"],
-        correctAnswer: "went"
-      };
-    case 'Advanced':
-      return {
-        question: "Select the correct conditional form: If I ___ about the exam, I would have studied more.",
-        options: ["knew", "had known", "would know"],
-        correctAnswer: "had known"
-      };
-    default:
-      return {
-        question: "Failed to generate a question. Please try again.",
-        options: ["Option 1", "Option 2", "Option 3"],
-        correctAnswer: "Option 1"
-      };
-  }
-}
-
-function correctFillerWords(input: string): FillerWordsCorrection {
-  const fillerWords = ["um", "uh", "you know", "like", "so", "I mean", "well"];
-  const words = input.split(/\s+/);  // Split input into words
-
-  // Filter out the filler words and count them
-  const fillerUsed = words.filter(word => fillerWords.includes(word.toLowerCase()));
-  const fillerCount = fillerUsed.length;
-
-  // Remove filler words from the original sentence
-  const correctedText = words.filter(word => !fillerWords.includes(word.toLowerCase())).join(" ");
-
-  return {
-    fillerWords: fillerUsed.join(", "), // Join the filler words as a string
-    fillerCount: fillerCount,
-    correctedText: correctedText.trim() // Clean up any leading/trailing spaces
-  };
-}
-
-
