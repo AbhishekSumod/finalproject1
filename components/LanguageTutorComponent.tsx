@@ -1,10 +1,11 @@
+// app/language-tutor/LanguageTutorComponent.tsx
 "use client";
 import { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation"; 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MessageCircle, BookOpen, PenTool, Send, User, Bot, ChevronLeft, ChevronRight } from "lucide-react";
 import { motion } from "framer-motion";
@@ -12,7 +13,7 @@ import { motion } from "framer-motion";
 const skillLevels = ["Beginner", "Intermediate", "Advanced"];
 
 type ConversationEntry = {
-  speaker: "User" | "AI";
+  speaker: "User     " | "AI";
   message: string;
 };
 
@@ -31,9 +32,12 @@ interface GrammarExercise {
 }
 
 export function LanguageTutorComponent() {
+  const searchParams = useSearchParams();
+  const mode = searchParams.get("mode"); // Get the mode from the query parameters
+
   const [skillLevel, setSkillLevel] = useState<string>("Beginner");
   const [conversation, setConversation] = useState<ConversationEntry[]>([]);
-  const [userInput, setUserInput] = useState<string>("");
+  const [userInput, setuserInput] = useState<string>("");
 
   const [progress, setProgress] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
@@ -48,13 +52,15 @@ export function LanguageTutorComponent() {
   const [wordExercises, setWordExercises] = useState<WordExercise[]>([]);
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
 
+  // Posture feedback state
+  const [postureFeedback, setPostureFeedback] = useState<string | null>(null);
+
   // Speech-to-text state
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
   const [speechError, setSpeechError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Initialize the Speech Recognition API
     if ('webkitSpeechRecognition' in window) {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       const recognitionInstance = new SpeechRecognition();
@@ -67,10 +73,10 @@ export function LanguageTutorComponent() {
         const transcript = Array.from(event.results)
           .map((result) => result[0].transcript)
           .join('');
-        setUserInput(transcript);
+        setuserInput(transcript);
       };
 
-      recognitionInstance.onerror = (event) => {
+      recognitionInstance.onerror = (event: { error: string; }) => {
         setSpeechError('Error occurred in speech recognition: ' + event.error);
       };
     } else {
@@ -86,6 +92,25 @@ export function LanguageTutorComponent() {
   useEffect(() => {
     scrollToBottom();
   }, [conversation]);
+
+  const updatePostureFeedback = (detectedPosture: string) => {
+    if (detectedPosture === "good") {
+      setPostureFeedback("Great posture! Keep it up.");
+    } else {
+      setPostureFeedback("Try to sit up straight and relax your shoulders.");
+    }
+  };
+
+  useEffect(() => {
+    if (mode === "paid") {
+      const postureDetectionInterval = setInterval(() => {
+        const detectedPosture = Math.random() > 0.5 ? "good" : "bad"; // Simulated posture detection
+        updatePostureFeedback(detectedPosture);
+      }, 5000); // Check posture every 5 seconds
+
+      return () => clearInterval(postureDetectionInterval);
+    }
+  }, [mode]);
 
   const fetchWords = async () => {
     setIsLoadingWord(true);
@@ -124,7 +149,7 @@ export function LanguageTutorComponent() {
         setCurrentGrammarExercise(data);
         setSelectedAnswer(null);
         setIsAnswerCorrect(null);
-        setError(null); // Clear any previous errors
+        setError(null);
       } else {
         setError(data.error || 'Failed to fetch exercise');
         setCurrentGrammarExercise(null);
@@ -149,11 +174,11 @@ export function LanguageTutorComponent() {
       if (response.ok) {
         const newConversation: ConversationEntry[] = [
           ...conversation,
-          { speaker: 'User', message: userInput },
+          { speaker: 'User      ', message: userInput },
           { speaker: 'AI', message: data.message },
         ];
         setConversation(newConversation);
-        setUserInput('');
+        setuserInput('');
         updateProgress();
       } else {
         setError(data.error || 'Failed to get AI response');
@@ -216,12 +241,10 @@ export function LanguageTutorComponent() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
         className="text-5xl font-extrabold mb-8 text-center text-white shadow-black text-shadow-gold"
-
       >
         AI Language Tutor
       </motion.h1>
 
-      {/* Error Message */}
       {error && (
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
@@ -232,7 +255,6 @@ export function LanguageTutorComponent() {
         </motion.div>
       )}
       
-      {/* Speech-to-Text Error */}
       {speechError && (
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
@@ -243,7 +265,16 @@ export function LanguageTutorComponent() {
         </motion.div>
       )}
 
-      {/* Skill Level Selection */}
+      {postureFeedback && mode === "paid" && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="text-yellow-500 mb-4 p-4 bg-yellow-100 rounded-md shadow-md"
+        >
+          {postureFeedback}
+        </motion.div>
+      )}
+
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -267,7 +298,6 @@ export function LanguageTutorComponent() {
         </Select>
       </motion.div>
 
-      {/* Tabs for Conversation, Vocabulary, and Grammar */}
       <Tabs defaultValue="conversation" className="mt-8 w-full max-w-lg">
         <TabsList className="grid w-full grid-cols-3 mb-6 p-1 rounded-full bg-gradient-to-r from-purple-700 via-indigo-600 to-blue-500 shadow-lg">
           <TabsTrigger value="conversation" className="rounded-full text-black hover:bg-black hover:text-black">
@@ -284,18 +314,14 @@ export function LanguageTutorComponent() {
           </TabsTrigger>
         </TabsList>
 
-        {/* Conversation Tab */}
         <TabsContent value="conversation">
           <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>Conversation Practice</CardTitle>
-            </CardHeader>
-            <CardContent>
+            <Card Content>
               <div className="flex flex-col space-y-4">
                 <div className="flex flex-col space-y-2">
                   {conversation.map((entry, idx) => (
-                    <div key={idx} className={`flex ${entry.speaker === 'User' ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`rounded-lg px-4 py-2 ${entry.speaker === 'User' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-black'}`}>
+                    <div key={idx} className={`flex ${entry.speaker === 'User      ' ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`rounded-lg px-4 py-2 ${entry.speaker === 'User      ' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-black'}`}>
                         {entry.message}
                       </div>
                     </div>
@@ -306,7 +332,7 @@ export function LanguageTutorComponent() {
                   <Input
                     type="text"
                     value={userInput}
-                    onChange={(e) => setUserInput(e.target.value)}
+                    onChange={(e) => setuserInput(e.target.value)}
                     placeholder="Ask something..."
                     className="flex-1 p-4 bg-black shadow-md rounded-lg"
                   />
@@ -315,14 +341,13 @@ export function LanguageTutorComponent() {
                   </Button>
                 </form>
 
-                {/* Speech-to-Text Buttons */}
                 <div className="flex space-x-4 mt-4">
                   <Button
                     className="bg-green-500 text-black rounded-lg p-3"
                     onClick={handleStartRecording}
                     disabled={isRecording}
                   >
-                    <User className="w-5 h-5 mr-2" />
+                    <User  className="w-5 h-5 mr-2" />
                     Start Recording
                   </Button>
                   <Button
@@ -339,7 +364,6 @@ export function LanguageTutorComponent() {
           </Card>
         </TabsContent>
 
-        {/* Vocabulary Tab */}
         <TabsContent value="vocabulary">
           <Card className="shadow-lg overflow-hidden">
             <CardHeader className="bg-gradient-to-r from-green-500 to-teal-500 text-black">
@@ -387,79 +411,75 @@ export function LanguageTutorComponent() {
           </Card>
         </TabsContent>
 
-        {/* Grammar Tab */}
         <TabsContent value="grammar">
-  <Card className="shadow-lg overflow-hidden">
-    <CardHeader className="bg-gradient-to-r from-purple-500 to-pink-500 text-white">
-      <CardTitle className="flex items-center text-2xl">
-        <PenTool className="w-6 h-6 mr-2" />
-        Grammar Exercises
-      </CardTitle>
-      <CardDescription className="text-purple-100">Sharpen your grammar skills with interactive exercises.</CardDescription>
-    </CardHeader>
-    <CardContent className="p-6">
-      {error ? (
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="text-red-500 mb-4 p-4 bg-red-100 rounded-md"
-        >
-          {error}
-        </motion.div>
-      ) : currentGrammarExercise ? (
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="space-y-4"
-        >
-          <div className="text-lg font-semibold text-black bg-purple-100 dark:bg-purple-900/30 p-4 rounded-lg shadow-inner">
-            {currentGrammarExercise.question}
-          </div>
-          <div className="space-y-2">
-            {currentGrammarExercise.options.map((option, index) => (
-              <Button
-                key={index}
-                onClick={() => setSelectedAnswer(option)}
-                variant={selectedAnswer === option ? "default" : "outline"}
-                className="w-full justify-start transition-all duration-200 ease-in-out transform hover:scale-105"
-              >
-                {option}
-              </Button>
-            ))}
-          </div>
-          <Button onClick={handleAnswerSubmit} className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white" disabled={!selectedAnswer}>
-            Submit Answer
-          </Button>
-          {isAnswerCorrect !== null && (
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className={`text-center font-semibold p-4 rounded-lg ${isAnswerCorrect ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}
-            >
-              {isAnswerCorrect ? 'Correct!' : (
-                <>
-                  <p>Incorrect. Try again!</p>
-                  <p className="mt-2">The correct answer is: <span className="font-bold">{currentGrammarExercise.correctAnswer}</span></p>
-                </>
+          <Card className="shadow-lg overflow-hidden">
+            <CardHeader className="bg-gradient-to-r from-purple-500 to-pink-500 text-white">
+              <CardTitle className="flex items-center text-2xl">
+                <PenTool className="w-6 h-6 mr-2" />
+                Grammar Exercises
+              </CardTitle>
+              <CardDescription className="text-purple-100">Sharpen your grammar skills with interactive exercises.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-6">
+              {error ? (
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="text-red-500 mb-4 p-4 bg-red-100 rounded-md"
+                >
+                  {error}
+                </motion.div>
+              ) : currentGrammarExercise ? (
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5 }}
+                  className="space-y-4"
+                >
+                  <div className="text-lg font-semibold text-black bg-purple-100 dark:bg-purple-900/30 p-4 rounded-lg shadow-inner">
+                    {currentGrammarExercise.question}
+                  </div>
+                  <div className="space-y-2">
+                    {currentGrammarExercise.options.map((option, index) => (
+                      <Button
+                        key={index}
+                        onClick={() => setSelectedAnswer(option)}
+                        variant={selectedAnswer === option ? "default" : "outline"}
+                        className="w-full justify-start transition-all duration-200 ease-in-out transform hover:scale-105"
+                      >
+                        {option}
+                      </Button>
+                    ))}
+                  </div>
+                  <Button onClick={handleAnswerSubmit} className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white" disabled={!selectedAnswer}>
+                    Submit Answer
+                  </Button>
+                  {isAnswerCorrect !== null && (
+                    <motion.div 
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className={`text-center font-semibold p-4 rounded-lg ${isAnswerCorrect ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}
+                    >
+                      {isAnswerCorrect ? 'Correct!' : (
+                        <>
+                          <p>Incorrect. Try again!</p>
+                          <p className="mt-2">The correct answer is: <span className="font-bold">{currentGrammarExercise.correctAnswer}</span></p>
+                        </>
+                      )}
+                    </motion.div>
+                  )}
+                </motion.div>
+              ) : (
+                <div className="text-center p-4">Loading grammar exercise...</div>
               )}
-            </motion.div>
-          )}
-        </motion.div>
-      ) : (
-        <div className="text-center p-4">Loading grammar exercise...</div>
-      )}
-      <div className="flex justify-center mt-6">
-        <Button onClick={handleNextExercise} className="px-8 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white">
-          Next Exercise
-        </Button>
-      </div>
-    </CardContent>
-  </Card>
-</TabsContent>
-
-
-
+              <div className="flex justify-center mt-6">
+                <Button onClick={handleNextExercise} className="px-8 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white">
+                  Next Exercise
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
     </div>
   );
